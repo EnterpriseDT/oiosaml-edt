@@ -1,0 +1,56 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IdentityModel.Selectors;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
+using System.Text;
+//using dk.nita.saml20.Properties;
+using Trace=dk.nita.saml20.Utils.Trace;
+
+namespace dk.nita.saml20.Specification
+{
+    /// <summary>
+    /// Checks if a certificate is within its validity period
+    /// Performs an online revocation check if the certificate contains a CRL url (oid: 2.5.29.31)
+    /// </summary>
+    public class DefaultCertificateSpecification : ICertificateSpecification
+    {
+        /// <summary>
+        /// Determines whether the specified certificate is considered valid according to the RFC3280 specification.
+        /// 
+        /// </summary>
+        /// <param name="certificate">The certificate to validate.</param>
+        /// <returns>
+        /// 	<c>true</c> if valid; otherwise, <c>false</c>.
+        /// </returns>
+        public bool IsSatisfiedBy(X509Certificate2 certificate)
+        {
+            bool useMachineContext = false;
+            X509ChainPolicy chainPolicy = new X509ChainPolicy();
+            if (!DefaultCertificateSpecification.ChainValidation)
+            {
+                Trace.TraceData(TraceEventType.Verbose, "Not verifying certificate chain");
+                chainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
+            }
+            else
+                Trace.TraceData(TraceEventType.Verbose, "Verifying certificate chain");
+            chainPolicy.RevocationMode = X509RevocationMode.NoCheck;//.Online;
+            X509CertificateValidator defaultCertificateValidator = X509CertificateValidator.CreateChainTrustValidator(useMachineContext, chainPolicy);
+
+            try
+            {
+                defaultCertificateValidator.Validate(certificate);
+                return true;
+            }
+            catch (Exception e)
+            {
+                Trace.TraceData(TraceEventType.Warning, string.Format(Tracing.CertificateIsNotRFC3280Valid, certificate.SubjectName.Name, certificate.Thumbprint, e));
+            }
+
+            return false;
+        }
+
+        public static bool ChainValidation { get; set; }
+    }
+}
